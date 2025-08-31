@@ -76,7 +76,7 @@ export default function BlockCreator() {
   // constraints / computed
   const computed = useMemo(() => {
     const p = { ...params };
-    p.width_in = clamp(p.width_in, 2, 36);
+    p.width_in = clamp(p.width_in, 1, 36);
     p.thickness_in = clamp(p.thickness_in, 0.1, 10);
     p.centerHoleDia_in = clamp(p.centerHoleDia_in, 0.1, p.width_in * 0.9);
 
@@ -84,7 +84,7 @@ export default function BlockCreator() {
     const px = (x) => x * scale * zoom;
 
     const hw = p.width_in / 2; // half width
-    const ht = p.thickness_in / 2; // half thickness (vertical half)
+    const ht = p.thickness_in / 2; // half thickness 
 
     return { p, px, hw, ht, scale };
   }, [params, zoom]);
@@ -139,7 +139,7 @@ export default function BlockCreator() {
   };
 
   // ------------- drawing helpers -------------
-  function Dim({ x1, y1, x2, y2, offset = 20, text, orient = "h", rotate }) {
+  function Dim({ x1, y1, x2, y2, offset = 20, text, orient = "h", rotate, textPos = "above",  }) {
     // simple dimension representation with arrows
     const dx = x2 - x1;
     const dy = y2 - y1;
@@ -156,6 +156,16 @@ export default function BlockCreator() {
 
     const arrow = 10;
 
+    // text offset depending on orientation & position
+
+    const midX = (ox + px) / 2;
+    const midY = (oy + py) / 2;
+
+    const textOffsetX = rotate ? 14 : 0;
+    const textOffsetY = rotate
+    ? (textPos === "above" ? -22 : +1)
+    : (textPos === "above" ? -6 : +16);
+
     return (
       <g className="text-xs" stroke="#0F0E0E" fill="none">
         {/* extension lines */}
@@ -165,11 +175,11 @@ export default function BlockCreator() {
         <line x1={ox} y1={oy} x2={px} y2={py} markerStart="url(#arrow)" markerEnd="url(#arrow)" />
         {/* text */}
         <text
-          x={(ox + px) / 2 + (rotate ? 14 : 0)}
-          y={(oy + py) / 2 - (rotate ? 22 : 6)}
+          x={midX + textOffsetX}
+          y={midY + textOffsetY}
           textAnchor="middle"
           fill="#0F0E0E"
-          {...(rotate ? { transform: `rotate(${rotate} ${(ox + px) / 2 + 14} ${(oy + py) / 2})` } : {})}
+          {...(rotate ? { transform: `rotate(${rotate} ${midX + textOffsetX} ${midY})` } : {})}
         >
           {text}
         </text>
@@ -181,15 +191,15 @@ export default function BlockCreator() {
   const { p, px, hw, ht } = computed;
 
   // canvas size in px
-  const margin = 100;
-  const widthPx = px(p.width_in) + margin * 2;
-  const heightPx = px(p.thickness_in) + margin * 2;
+  const margin = 200;
+  const widthPx = px(p.thickness_in) + margin * 2;
+  const heightPx = px(p.width_in) + margin * 2;
 
   // geometry in *inches* (origin at plate center)
-  const left = -hw;
-  const right = hw;
-  const top = -ht;
-  const bottom = ht;
+  const left = -ht;
+  const right = ht;
+  const top = -hw;
+  const bottom = hw;
 
   return (
     <div className="w-full min-h-screen p-6 bg-neutral-50">
@@ -210,7 +220,7 @@ export default function BlockCreator() {
                   {
                     k: "width_in",
                     label: "Width",
-                    min: unit === "in" ? 6 : 152.4,      // 6 in = 152.4 mm
+                    min: unit === "in" ? 1 : 152.4,      // 6 in = 152.4 mm
                     max: unit === "in" ? 36 : 915,       // 36 in = 915 mm
                     step: unit === "in" ? 0.1 : 1,
                   },
@@ -218,7 +228,7 @@ export default function BlockCreator() {
                     k: "thickness_in",
                     label: "Thickness",
                     min: unit === "in" ? 0.5 : 12.7,     // 0.5 in = 12.7 mm
-                    max: unit === "in" ? 10 : 254,       // 10 in = 254 mm
+                    max: unit === "in" ? 15 : 254,       // 10 in = 254 mm
                     step: unit === "in" ? 0.05 : 0.5,
                   },
                   {
@@ -286,7 +296,7 @@ export default function BlockCreator() {
                   </div>
                   <div className="space-y-1 col-span-2">
                     <Label>Zoom</Label>
-                    <Slider value={[zoom]} min={2.5} max={5} step={0.01} onValueChange={(v)=>setZoom(v[0])}/>
+                    <Slider value={[zoom]} min={0.5} max={10} step={0.01} onValueChange={(v)=>setZoom(v[0])}/>
                   </div>
                 </div>
                 <div className="flex gap-2 pt-2">
@@ -325,16 +335,15 @@ export default function BlockCreator() {
 
                 {/* plate */}
                 <g>
-                  {/* hatched ends to mimic your screenshot */}
-                  <rect x={px(left)} y={px(top)} width={px(p.width_in)} height={px(p.thickness_in)} fill="url(#hatch)" opacity={0.7} />
-                  <rect x={px(right) - px(p.width_in)} y={px(top)} width={px(p.width_in)} height={px(p.thickness_in)} fill="url(#hatch)" opacity={0.7} />
+                  {/* hatched */}
+                  <rect x={px(left)} y={px(top)} width={px(p.thickness_in)} height={px(p.width_in)} fill="url(#hatch)" opacity={0.7} />
                   {/* Plate outline */}
-                  <rect x={px(left)} y={px(top)} width={px(p.width_in)} height={px(p.thickness_in)} fill="transparent" stroke="#0F0E0E" strokeWidth={2} />
+                  <rect x={px(left)} y={px(top)} width={px(p.thickness_in)} height={px(p.width_in)} fill="transparent" stroke="#0F0E0E" strokeWidth={2} />
 
                 </g>
 
                 {/* center hole */}
-                <rect x={px(-p.centerHoleDia_in/2)} y={px(top)} width={px(p.centerHoleDia_in)} height={px(p.thickness_in)} fill="#ffffff" stroke="#0F0E0E" strokeWidth={2} />
+                <rect x={px(-p.thickness_in/2)} y={px(-p.centerHoleDia_in/2)} width={px(p.thickness_in)} height={px(p.centerHoleDia_in)} fill="#ffffff" stroke="#0F0E0E" strokeWidth={2} />
 
                 {/* axes */}
                 <line
@@ -357,15 +366,15 @@ export default function BlockCreator() {
                 {/* dimensions */}
                 {showDims && (
                   <g>
-                    {/* WIDTH */}
-                    <Dim x1={px(left)} y1={px(bottom)} x2={px(right)} y2={px(bottom)} offset={40} text={`WIDTH = ${unit==="in"?inchesToEngineeringStr(p.width_in, precision):formatValue({valueInInches:p.width_in, unit, precision})}`} />
-
                     {/* THICKNESS */}
-                    <Dim x1={px(left)} y1={px(top)} x2={px(left)} y2={px(bottom)} offset={60} text={`${formatValue({valueInInches:p.thickness_in, unit, precision})}`} rotate={-90} />
+                    <Dim x1={px(left)} y1={px(top)} x2={px(right)} y2={px(top)} offset={-20}text={`${formatValue({valueInInches:p.thickness_in, unit, precision})}`} />
+
+                    {/* WIDTH */}
+                    <Dim x1={px(left)} y1={px(top)} x2={px(left)} y2={px(bottom)} offset={20} text={`WIDTH = ${unit === "in"? inchesToEngineeringStr(p.width_in, precision): formatValue({ valueInInches: p.width_in, unit, precision })}`} rotate={-90} />
 
                     {/* CENTER HOLE */}
                     (
-                      <Dim x1={px(-p.centerHoleDia_in/2)} y1={px(top)} x2={px(p.centerHoleDia_in/2)} y2={px(top)} offset={-20} text={`⌀${formatValue({valueInInches:p.centerHoleDia_in, unit, precision})}`} />
+                      <Dim x1={px(right)} y1={px(-p.centerHoleDia_in/2)} x2={px(right)} y2={px(p.centerHoleDia_in/2)} offset={-30} text={`⌀${formatValue({valueInInches:p.centerHoleDia_in, unit, precision})}`} rotate={-90} textPos="below" />
                     )
                   </g>
                 )}
