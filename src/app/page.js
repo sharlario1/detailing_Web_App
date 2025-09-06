@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useMemo, useRef, useState } from "react";
+import { Roboto } from 'next/font/google';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,11 +11,16 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Switch } from "@/components/ui/switch";
 import { Download, Ruler, Settings2 } from "lucide-react";
 import { motion } from "framer-motion";
+import { Analytics } from "@vercel/analytics/next";
 
 
+const roboto = Roboto({
+  weight: ['400', '700'],
+  subsets: ['latin'],
+});
 
 /**
- * ACAD Block Type Creator – Simple Plate with Center Hole & Keyhole
+ * Plate Detail – Simple Plate with Center Hole & Keyhole
  *
  * Features:
  * - Parametric inputs (width, thickness, outer radius, center-hole Ø, filler length, keyhole size & offset).
@@ -23,6 +29,7 @@ import { motion } from "framer-motion";
  * - Unit system toggle (in / mm) with precision.
  * - Zoom / pan (simple zoom slider) and SVG export.
  */
+
 
 // ---------- helpers ----------
 const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
@@ -47,6 +54,15 @@ function formatValue({ valueInInches, unit, precision }) {
 function ensureNumber(v, fallback) {
   const n = Number(v);
   return Number.isFinite(n) ? n : fallback;
+}
+
+// Title component
+function PageTitle() {
+  return (
+    <div className={`w-full text-center py-6 ${roboto.className}`}>
+      <h1 className="text-4xl font-bold text-gray-800">DETAILING WEB APP</h1>
+    </div>
+  );
 }
 
 // ---------- main component ----------
@@ -120,6 +136,8 @@ export default function BlockCreator() {
     URL.revokeObjectURL(url);
   };
 
+  
+
   // When params or unit changes, update inputVals
   React.useEffect(() => {
     setInputVals({
@@ -192,7 +210,7 @@ export default function BlockCreator() {
 
   // canvas size in px
   const margin = 200;
-  const widthPx = px(p.thickness_in) + margin * 2;
+  const widthPx = px(p.thickness_in) + margin * 4;
   const heightPx = px(p.width_in) + margin * 2;
 
   // geometry in *inches* (origin at plate center)
@@ -203,7 +221,9 @@ export default function BlockCreator() {
 
   return (
     <div className="w-full min-h-screen p-6 bg-neutral-50">
-      <div className="max-w-7xl mx-auto grid grid-cols-1 xl:grid-cols-[360px_1fr_320px] gap-6">
+      <PageTitle />
+      <div className="w-full">
+        <div className="grid grid-cols-1 xl:grid-cols-[360px_1fr_320px] gap-6">
         {/* left: controls */}
         <Card className="shadow-md">
           <CardHeader className="pb-2">
@@ -228,7 +248,7 @@ export default function BlockCreator() {
                     k: "thickness_in",
                     label: "Thickness",
                     min: unit === "in" ? 0.5 : 12.7,     // 0.5 in = 12.7 mm
-                    max: unit === "in" ? 15 : 254,       // 10 in = 254 mm
+                    max: unit === "in" ? 10 : 254,       // 10 in = 254 mm
                     step: unit === "in" ? 0.05 : 0.5,
                   },
                   {
@@ -333,18 +353,43 @@ export default function BlockCreator() {
 
                
 
-                {/* plate */}
-                <g>
+                
+
+                {/* Plate - Plan View */}
+                <g transform={`translate(${-px(p.thickness_in) - 100}, 0)`}>
+                  {/* plate outline */}
+                  <rect
+                    x={px(-p.width_in/2)}
+                    y={px(-p.width_in/2)}
+                    width={px(p.width_in)}
+                    height={px(p.width_in)}
+                    fill="transparent"
+                    stroke="#0F0E0E"
+                    strokeWidth={2}
+                  />
+                  {/* center hole */}
+                  <circle
+                    cx={0}
+                    cy={0}
+                    r={px(p.centerHoleDia_in/2)}
+                    fill="#fff"
+                    stroke="#0F0E0E"
+                    strokeWidth={2}
+                  />
+                </g>
+
+                {/* Plate - Section View */}
+                <g transform={`translate(${px(p.thickness_in) + 100}, 0)`}>
                   {/* hatched */}
                   <rect x={px(left)} y={px(top)} width={px(p.thickness_in)} height={px(p.width_in)} fill="url(#hatch)" opacity={0.7} />
                   {/* Plate outline */}
                   <rect x={px(left)} y={px(top)} width={px(p.thickness_in)} height={px(p.width_in)} fill="transparent" stroke="#0F0E0E" strokeWidth={2} />
+                  {/* center hole */}
+                <rect x={px(-p.thickness_in/2)} y={px(-p.centerHoleDia_in/2)} width={px(p.thickness_in)} height={px(p.centerHoleDia_in)} fill="#ffffff" stroke="#0F0E0E" strokeWidth={2} />
 
                 </g>
 
-                {/* center hole */}
-                <rect x={px(-p.thickness_in/2)} y={px(-p.centerHoleDia_in/2)} width={px(p.thickness_in)} height={px(p.centerHoleDia_in)} fill="#ffffff" stroke="#0F0E0E" strokeWidth={2} />
-
+                
                 {/* axes */}
                 <line
                   x1={-widthPx}
@@ -354,18 +399,35 @@ export default function BlockCreator() {
                   stroke="#94a3b8"
                   strokeDasharray="20 6 6 6 20"
                 />
-                <line
+                <line //center reference line
                   x1={0}
-                  y1={-heightPx}
+                  y1={-heightPx-50}
                   x2={0}
-                  y2={heightPx}
-                  stroke="#94a3b8"
+                  y2={heightPx-50}
+                  stroke="#E43636"
+                  strokeDasharray="20 6 6 6 20"
+                />
+                <line //Left vertical line
+                  x1={-px(p.thickness_in) - 100}
+                  y1={-heightPx-50}
+                  x2={-px(p.thickness_in) - 100}
+                  y2={heightPx-50}
+                  stroke="#08CB00"
+                  strokeDasharray="20 6 6 6 20"
+                />
+                <line //Right vertical line
+                  x1={px(p.thickness_in) + 100}
+                  y1={-heightPx-50}
+                  x2={px(p.thickness_in) + 100}
+                  y2={heightPx-50}
+                  stroke="#465C88"
                   strokeDasharray="20 6 6 6 20"
                 />
 
                 {/* dimensions */}
                 {showDims && (
-                  <g>
+                <>  {/*Section View Dimensions*/}
+                  <g transform={`translate(${px(p.thickness_in) + 100}, 0)`}>
                     {/* THICKNESS */}
                     <Dim x1={px(left)} y1={px(top)} x2={px(right)} y2={px(top)} offset={-20}text={`${formatValue({valueInInches:p.thickness_in, unit, precision})}`} />
 
@@ -373,10 +435,44 @@ export default function BlockCreator() {
                     <Dim x1={px(left)} y1={px(top)} x2={px(left)} y2={px(bottom)} offset={20} text={`WIDTH = ${unit === "in"? inchesToEngineeringStr(p.width_in, precision): formatValue({ valueInInches: p.width_in, unit, precision })}`} rotate={-90} />
 
                     {/* CENTER HOLE */}
-                    (
-                      <Dim x1={px(right)} y1={px(-p.centerHoleDia_in/2)} x2={px(right)} y2={px(p.centerHoleDia_in/2)} offset={-30} text={`⌀${formatValue({valueInInches:p.centerHoleDia_in, unit, precision})}`} rotate={-90} textPos="below" />
-                    )
+                    
+                    <Dim 
+                    x1={px(right)} 
+                    y1={px(-p.centerHoleDia_in/2)} 
+                    x2={px(right)} y2={px(p.centerHoleDia_in/2)} 
+                    offset={-20} 
+                    text={`⌀${formatValue({valueInInches:p.centerHoleDia_in, unit, precision})}`} 
+                    rotate={-90} 
+                    textPos="below" />
+                    
+                    
                   </g>
+                    {/*Plan View Dimensions*/}
+                  <g transform={`translate(${-px(p.thickness_in) - 100}, 0)`}>
+
+                    {/* WIDTH Vertical */}
+                    <Dim 
+                    x1={px(left*2)} 
+                    y1={px(top)} 
+                    x2={px(left*2)} 
+                    y2={px(bottom)} 
+                    offset={70} 
+                    text={`WIDTH = ${unit === "in"? inchesToEngineeringStr(p.width_in, precision): formatValue({ valueInInches: p.width_in, unit, precision })}`} 
+                    rotate={-90} />
+
+                    {/* WIDTH Horizontal*/}
+                    <Dim 
+                    x1={px(top)} 
+                    y1={px(top)} 
+                    x2={px(bottom)} 
+                    y2={px(top)} 
+                    offset={-20} 
+                    text={`WIDTH = ${unit === "in"? inchesToEngineeringStr(p.width_in, precision): formatValue({ valueInInches: p.width_in, unit, precision })}`} />
+                  </g>
+                </>
+
+                  
+
                 )}
               </motion.svg>
             </div>
@@ -406,6 +502,13 @@ export default function BlockCreator() {
           </CardContent>
         </Card>
       </div>
+      </div>
+    <Analytics/>
+
     </div>
+    
+      
   );
+  <Analytics/>
+
 }
