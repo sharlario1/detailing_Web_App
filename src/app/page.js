@@ -12,6 +12,7 @@ import { Switch } from "@/components/ui/switch";
 import { Download, Ruler, Settings2 } from "lucide-react";
 import { motion } from "framer-motion";
 import { Analytics } from "@vercel/analytics/next";
+import Image from 'next/image'
 
 
 const roboto = Roboto({
@@ -20,14 +21,14 @@ const roboto = Roboto({
 });
 
 /**
- * Plate Detail – Simple Plate with Center Hole & Keyhole
+ * Plate Detail
  *
  * Features:
- * - Parametric inputs (width, thickness, outer radius, center-hole Ø, filler length, keyhole size & offset).
+ * - Parametric inputs (width, thickness, outer radius, center-hole Ø).
  * - Properties panel reflecting current values and constraints.
  * - Engineering dimensions overlay (feet–inches.decimal) or metric.
  * - Unit system toggle (in / mm) with precision.
- * - Zoom / pan (simple zoom slider) and SVG export.
+ * - Zoom / pan/* (simple zoom slider) and SVG export.
  */
 
 
@@ -59,8 +60,14 @@ function ensureNumber(v, fallback) {
 // Title component
 function PageTitle() {
   return (
-    <div className={`w-full text-center py-6 ${roboto.className}`}>
-      <h1 className="text-4xl font-bold text-gray-800">DETAILING WEB APP</h1>
+    <div className={`w-full text-left py-6 flex items-center gap-4 ${roboto.className}`}>
+      <Image 
+      src="/logo.svg" 
+      alt="DYWIDAG_Logo" 
+      width={200} 
+      height={200} 
+      />
+      <h1 className="text-3xl font-bold text-gray-800">DETAILING WEB APP</h1>
     </div>
   );
 }
@@ -412,7 +419,7 @@ export default function BlockCreator() {
                   y1={-heightPx-50}
                   x2={-px(p.thickness_in) - 100}
                   y2={heightPx-50}
-                  stroke="#08CB00"
+                  stroke="#E43636"
                   strokeDasharray="20 6 6 6 20"
                 />
                 <line //Right vertical line
@@ -420,7 +427,7 @@ export default function BlockCreator() {
                   y1={-heightPx-50}
                   x2={px(p.thickness_in) + 100}
                   y2={heightPx-50}
-                  stroke="#465C88"
+                  stroke="#E43636"
                   strokeDasharray="20 6 6 6 20"
                 />
 
@@ -430,9 +437,6 @@ export default function BlockCreator() {
                   <g transform={`translate(${px(p.thickness_in) + 100}, 0)`}>
                     {/* THICKNESS */}
                     <Dim x1={px(left)} y1={px(top)} x2={px(right)} y2={px(top)} offset={-20}text={`${formatValue({valueInInches:p.thickness_in, unit, precision})}`} />
-
-                    {/* WIDTH */}
-                    <Dim x1={px(left)} y1={px(top)} x2={px(left)} y2={px(bottom)} offset={20} text={`WIDTH = ${unit === "in"? inchesToEngineeringStr(p.width_in, precision): formatValue({ valueInInches: p.width_in, unit, precision })}`} rotate={-90} />
 
                     {/* CENTER HOLE */}
                     
@@ -457,7 +461,7 @@ export default function BlockCreator() {
                     x2={px(left*2)} 
                     y2={px(bottom)} 
                     offset={70} 
-                    text={`WIDTH = ${unit === "in"? inchesToEngineeringStr(p.width_in, precision): formatValue({ valueInInches: p.width_in, unit, precision })}`} 
+                    text={`${unit === "in"? inchesToEngineeringStr(p.width_in, precision): formatValue({ valueInInches: p.width_in, unit, precision })}`} 
                     rotate={-90} />
 
                     {/* WIDTH Horizontal*/}
@@ -467,7 +471,7 @@ export default function BlockCreator() {
                     x2={px(bottom)} 
                     y2={px(top)} 
                     offset={-20} 
-                    text={`WIDTH = ${unit === "in"? inchesToEngineeringStr(p.width_in, precision): formatValue({ valueInInches: p.width_in, unit, precision })}`} />
+                    text={`${unit === "in"? inchesToEngineeringStr(p.width_in, precision): formatValue({ valueInInches: p.width_in, unit, precision })}`} />
                   </g>
                 </>
 
