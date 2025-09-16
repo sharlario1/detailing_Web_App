@@ -422,7 +422,7 @@ export default function BlockCreator() {
                   stroke="#E43636"
                   strokeDasharray="20 6 6 6 20"
                 />
-                <line //Right vertical line
+                <line //Right vertical line...
                   x1={px(p.thickness_in) + 100}
                   y1={-heightPx-50}
                   x2={px(p.thickness_in) + 100}
