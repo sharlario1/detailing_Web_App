@@ -24,19 +24,19 @@ const roboto = Roboto({
  * Plate Detail
  *
  * Features:
- * - Parametric inputs (width, thickness, outer radius, center-hole Ø).
+ * - Parametric inputs (width, thickness, center-hole Ø).
  * - Properties panel reflecting current values and constraints.
  * - Engineering dimensions overlay (feet–inches.decimal) or metric.
  * - Unit system toggle (in / mm) with precision.
- * - Zoom / pan/* (simple zoom slider) and SVG export.
+ * - Zoom (simple zoom slider).
  */
 
 
 // ---------- helpers ----------
 const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
-
-function inchesToEngineeringStr(inches, precision = 2) {
   // Engineering format: feet'-inches.decimal"
+function inchesToEngineeringStr(inches, precision = 2) {
+
   const sign = inches < 0 ? "-" : "";
   const abs = Math.abs(inches);
   const feet = Math.floor(abs / 12);
@@ -49,7 +49,7 @@ function formatValue({ valueInInches, unit, precision }) {
   if (unit === "in") return `${valueInInches.toFixed(precision)}\"`;
   // mm display
   const mm = valueInInches * 25.4;
-  return `${mm.toFixed(precision)} mm`;
+  return `${mm.toFixed(1)} mm`;
 }
 
 function ensureNumber(v, fallback) {
@@ -226,6 +226,9 @@ export default function BlockCreator() {
   const top = -hw;
   const bottom = hw;
 
+  const leftEdge = px(-p.width_in/2);
+  const dimOffset = 0; 
+
   return (
     <div className="w-full min-h-screen p-6 bg-neutral-50">
       <PageTitle />
@@ -327,8 +330,8 @@ export default function BlockCreator() {
                   </div>
                 </div>
                 <div className="flex gap-2 pt-2">
-                  <Button onClick={downloadSVG} className="gap-2"><Download className="h-4 w-4"/>Export SVG</Button>
-                  <Button variant="outline" onClick={downloadJSON} className="gap-2"><Download className="h-4 w-4"/>Export JSON</Button>
+                  {/* <Button onClick={downloadSVG} className="gap-2"><Download className="h-4 w-4"/>Export SVG</Button>
+                  <Button variant="outline" onClick={downloadJSON} className="gap-2"><Download className="h-4 w-4"/>Export JSON</Button> */}
                 </div>
               </TabsContent>
             </Tabs>
@@ -383,6 +386,14 @@ export default function BlockCreator() {
                     stroke="#0F0E0E"
                     strokeWidth={2}
                   />
+                  <text
+                    x={0}
+                    y={px(p.width_in / 2) + 30}
+                    textAnchor="middle"
+                    className="text-xs font-bold fill-black-700 font-sans" // Added font-sans here
+                  >
+                    PLAN
+                  </text>
                 </g>
 
                 {/* Plate - Section View */}
@@ -393,6 +404,14 @@ export default function BlockCreator() {
                   <rect x={px(left)} y={px(top)} width={px(p.thickness_in)} height={px(p.width_in)} fill="transparent" stroke="#0F0E0E" strokeWidth={2} />
                   {/* center hole */}
                 <rect x={px(-p.thickness_in/2)} y={px(-p.centerHoleDia_in/2)} width={px(p.thickness_in)} height={px(p.centerHoleDia_in)} fill="#ffffff" stroke="#0F0E0E" strokeWidth={2} />
+                <text
+                  x={0} 
+                  y={px(p.width_in / 2) + 30} 
+                  textAnchor="middle"
+                  className="text-xs font-bold fill-black-700 font-sans" 
+                >
+                  SECTION
+                </text>
 
                 </g>
 
@@ -443,12 +462,12 @@ export default function BlockCreator() {
                     <Dim 
                     x1={px(right)} 
                     y1={px(-p.centerHoleDia_in/2)} 
-                    x2={px(right)} y2={px(p.centerHoleDia_in/2)} 
+                    x2={px(right)} 
+                    y2={px(p.centerHoleDia_in/2)} 
                     offset={-20} 
                     text={`⌀${formatValue({valueInInches:p.centerHoleDia_in, unit, precision})}`} 
                     rotate={-90} 
                     textPos="below" />
-                    
                     
                   </g>
                     {/*Plan View Dimensions*/}
@@ -456,13 +475,14 @@ export default function BlockCreator() {
 
                     {/* WIDTH Vertical */}
                     <Dim 
-                    x1={px(left*2)} 
-                    y1={px(top)} 
-                    x2={px(left*2)} 
-                    y2={px(bottom)} 
-                    offset={70} 
+                    x1={leftEdge + dimOffset}
+                    y1={px(-p.width_in/2)} 
+                    x2={leftEdge + dimOffset}
+                    y2={px(p.width_in/2)} 
+                    offset={20} 
                     text={`${unit === "in"? inchesToEngineeringStr(p.width_in, precision): formatValue({ valueInInches: p.width_in, unit, precision })}`} 
-                    rotate={-90} />
+                    rotate={-90} 
+                    />    
 
                     {/* WIDTH Horizontal*/}
                     <Dim 
@@ -513,6 +533,4 @@ export default function BlockCreator() {
     
       
   );
-  <Analytics/>
-
 }
