@@ -10,6 +10,7 @@ import { Slider } from "@/components/ui/slider";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Switch } from "@/components/ui/switch";
 import { Download, Ruler, Settings2 } from "lucide-react";
+import { CircleDashed } from 'lucide-react';
 import { motion } from "framer-motion";
 import { Analytics } from "@vercel/analytics/next";
 import Image from 'next/image'
@@ -57,6 +58,24 @@ function ensureNumber(v, fallback) {
   return Number.isFinite(n) ? n : fallback;
 }
 
+// ---------- pipe data ----------
+const PIPE_SCHEDULES = ["Sch. 40", "Sch. 160", "DBLE E.H."]; // display labels
+const scheduleToKey = (s) => (s === "Sch. 40" ? "sch40" : (s === "Sch. 160" ? "sch160" : "dble"));
+// Pipe table: values in inches. Missing entries are null (i.e., not available for that schedule).
+const PIPE_DATA = {
+  "1 ½": { od: 1.900, sch40: 1.610, sch160: 1.338, dble: 1.100 },
+  "2":   { od: 2.375, sch40: 2.067, sch160: 1.689, dble: 1.503 },
+  "2 ½": { od: 2.875, sch40: 2.469, sch160: 2.125, dble: 1.771 },
+  "3":   { od: 3.500, sch40: 3.068, sch160: 2.626, dble: 2.300 },
+  "3 ½": { od: 4.000, sch40: 3.548, sch160: null, dble: 2.728 }, // Not available in Sch 160
+  "4":   { od: 4.500, sch40: 4.026, sch160: 3.438, dble: 3.152 },
+  "4 ½": { od: 5.000, sch40: null, sch160: null, dble: 3.580 }, // Not available in Sch 40 or Sch 160  
+  "5":   { od: 5.563, sch40: 5.047, sch160: 4.313, dble: 4.063 },
+  "6":   { od: 6.625, sch40: 6.065, sch160: 5.189, dble: 4.897 },
+  "7":   { od: 7.625, sch40: null, sch160: null,  dble: 5.875 }, // Not available in Sch 40 or Sch 160
+  "8":   { od: 8.625, sch40: 7.981, sch160: 6.813, dble: 6.875 },
+};
+
 // Title component
 function PageTitle() {
   return (
@@ -80,21 +99,68 @@ export default function BlockCreator() {
   const [showDims, setShowDims] = useState(true);
   const [zoom, setZoom] = useState(2.5);
 
-  const uiVal = (inches) => (unit === "in" ? inches : inches * 25.4);
-  const fromUi = (val) => (unit === "in" ? val : val / 25.4);
+  const uiVal = (inches) => {
+  if (inches === undefined || inches === null || inches === '') return '';
+  return unit === "in" ? inches : inches * 25.4;
+  };
+
+  const fromUi = (val) => {
+    if (val === undefined || val === null || val === '') return '';
+    return unit === "in" ? val : val / 25.4;
+  };
 
 
   const [params, setParams] = useState({
-    width_in: 10, // plate overall width
-    thickness_in: 2.5, // vertical size of bar
-    centerHoleDia_in: 2.5, // center hole diameter
+    width_in: 8, 
+    thickness_in: 1.75, 
+    centerHoleDia_in: 1.5, 
+    pipeLength_in: 6,
   });
 
   const [inputVals, setInputVals] = useState({
     width_in: uiVal(params.width_in),
     thickness_in: uiVal(params.thickness_in),
-    centerHoleDia_in: uiVal(params.centerHoleDia_in),
+    pipeLength_in: uiVal(params.pipeLength_in),
   });
+
+  // Pipe UI state
+  const [showPipe, setShowPipe] = useState(false);
+  const [pipeSchedule, setPipeSchedule] = useState("Sch. 40");
+  const [pipeSize, setPipeSize] = useState(() => {
+    const key = scheduleToKey("Sch. 40");
+    const first = Object.keys(PIPE_DATA).find(sz => PIPE_DATA[sz][key] != null) || Object.keys(PIPE_DATA)[0];
+    return first;
+  });
+  const sizeOptions = useMemo(() => {
+    const key = scheduleToKey(pipeSchedule);
+    let sizes = Object.keys(PIPE_DATA).filter(sz => PIPE_DATA[sz][key] != null);
+    if (pipeSchedule === "Sch. 40") {
+      sizes = sizes.filter(sz => sz !== "4 ½" && sz !== "7");
+    } else if (pipeSchedule === "Sch. 160") {
+      sizes = sizes.filter(sz => sz !== "3 ½" && sz !== "4 ½" && sz !== "7");
+    }
+    return sizes.sort((a, b) => {
+      const numA = parseFloat(a.replace(' ½', '.5'));
+      const numB = parseFloat(b.replace(' ½', '.5'));
+      return numA - numB;
+    });
+}, [pipeSchedule]);
+  React.useEffect(() => {
+    const key = scheduleToKey(pipeSchedule);
+    if (PIPE_DATA[pipeSize]?.[key] == null) {
+      const first = Object.keys(PIPE_DATA).find(sz => PIPE_DATA[sz][key] != null);
+      if (first) setPipeSize(first);
+    }
+    // eslint-disable-next-line
+  }, [pipeSchedule]);
+  const selectedPipe = useMemo(() => {
+    const rec = PIPE_DATA[pipeSize];
+    if (!rec) return null;
+    const key = scheduleToKey(pipeSchedule);
+    const id = rec[key];
+    if (id == null) return null;
+    return { od_in: rec.od, id_in: id, size: pipeSize, schedule: pipeSchedule };
+  }, [pipeSize, pipeSchedule]);
 
   // constraints / computed
   const computed = useMemo(() => {
@@ -102,6 +168,7 @@ export default function BlockCreator() {
     p.width_in = clamp(p.width_in, 1, 36);
     p.thickness_in = clamp(p.thickness_in, 0.1, 10);
     p.centerHoleDia_in = clamp(p.centerHoleDia_in, 0.1, p.width_in * 0.9);
+    p.pipeLength_in = clamp(p.pipeLength_in, 2, 36);
 
     const scale = 8; // px per inch at zoom=1
     const px = (x) => x * scale * zoom;
@@ -151,12 +218,13 @@ export default function BlockCreator() {
       width_in: uiVal(params.width_in),
       thickness_in: uiVal(params.thickness_in),
       centerHoleDia_in: uiVal(params.centerHoleDia_in),
+      pipeLength_in: uiVal(params.pipeLength_in),
     });
     // eslint-disable-next-line
   }, [params, unit]);
 
   const handleInputChange = (k, val) => {
-    setInputVals((s) => ({ ...s, [k]: val }));
+    setInputVals((s) => ({ ...s, [k]: val === '' ? '' : val }));
   };
 
   const handleInputBlur = (k, val) => {
@@ -270,6 +338,7 @@ export default function BlockCreator() {
                       : Math.max(6.35, p.width_in * 25.4 * 0.9),
                     step: unit === "in" ? 0.05 : 0.5,
                   },
+                  
                 ].map(({ k, label, min, max, step }) => {
                   const v = uiVal(p[k]);
                   return (
@@ -287,7 +356,7 @@ export default function BlockCreator() {
                           step={step}
                           min={min}
                           max={max}
-                          value={inputVals[k]}
+                          value={inputVals[k] ?? ''}
                           onChange={(e) => handleInputChange(k, e.target.value)}
                           onBlur={(e) => handleInputBlur(k, e.target.value)}
                           onKeyDown={e => {
@@ -305,12 +374,89 @@ export default function BlockCreator() {
                     </div>
                   );
                 })}
+                
+                <div className="flex items-center justify-between">
+                    <Label className="flex items-center gap-2"><CircleDashed className="h-4 w-4"/> Show Welded Steel Pipe</Label>
+                    <Switch checked={showPipe} onCheckedChange={setShowPipe}/>
+                </div>
+                {showPipe && (
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1">
+                      <Label>Schedule</Label>
+                      <select
+                        className="w-full border rounded-md px-2 py-2 bg-white"
+                        value={pipeSchedule}
+                        onChange={(e)=>setPipeSchedule(e.target.value)}
+                      >
+                        {PIPE_SCHEDULES.map(s => (
+                          <option key={s} value={s}>{s}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="space-y-1">
+                      <Label>Pipe Size</Label>
+                      <select
+                        className="w-full border rounded-md px-2 py-2 bg-white"
+                        value={pipeSize}
+                        onChange={(e)=>setPipeSize(e.target.value)}
+                      >
+                        {sizeOptions.map(sz => (
+                          <option key={sz} value={sz}>{sz} in</option>
+                        ))}
+                      </select>
+                    </div>
+                    {showPipe && selectedPipe && (
+                      <div className="text-sm tabular-nums text-muted-foreground">
+                        OD: {formatValue({ valueInInches: selectedPipe.od_in, unit, precision })}, 
+                        <br />
+                        ID: {formatValue({ valueInInches: selectedPipe.id_in, unit, precision })}
+                      </div>
+                    )}
+                  </div>
+                )}
+                {showPipe && (
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="pipeLength_in">Pipe Length</Label>
+                      <span className="text-sm tabular-nums text-muted-foreground">
+                        {unit === "in" ? `${uiVal(p.pipeLength_in).toFixed(2)}\"` : `${uiVal(p.pipeLength_in).toFixed(1)} mm`}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Input
+                        id="pipeLength_in"
+                        type="number"
+                        step={unit === "in" ? 0.1 : 1}
+                        min={unit === "in" ? 1 : 25.4}
+                        max={unit === "in" ? 36 : 914.4}
+                        value={inputVals.pipeLength_in}
+                        onChange={(e) => handleInputChange("pipeLength_in", e.target.value)}
+                        onBlur={(e) => handleInputBlur("pipeLength_in", e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") handleInputBlur("pipeLength_in", e.target.value);
+                        }}
+                      />
+                    </div>
+                    <Slider
+                      value={[uiVal(p.pipeLength_in)]}
+                      min={unit === "in" ? 1 : 25.4}
+                      max={unit === "in" ? 36 : 914.4}
+                      step={unit === "in" ? 0.1 : 1}
+                      onValueChange={(vals) => setParam("pipeLength_in", vals[0])}
+                    />
+                  </div>
+                )}
+                <div className="flex items-center justify-between"></div>
               </TabsContent>
+                
+
               <TabsContent value="display" className="space-y-4">
                 <div className="flex items-center justify-between">
                   <Label className="flex items-center gap-2"><Ruler className="h-4 w-4"/> Show Dimensions</Label>
                   <Switch checked={showDims} onCheckedChange={setShowDims}/>
                 </div>
+                
+                
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1">
                     <Label>Units</Label>
@@ -362,11 +508,10 @@ export default function BlockCreator() {
                 </defs>
 
                
-
                 
-
+                
                 {/* Plate - Plan View */}
-                <g transform={`translate(${-px(p.thickness_in) - 100}, 0)`}>
+                <g transform={`translate(${-px(p.pipeLength_in)-100}, 0)`}>
                   {/* plate outline */}
                   <rect
                     x={px(-p.width_in/2)}
@@ -386,6 +531,31 @@ export default function BlockCreator() {
                     stroke="#0F0E0E"
                     strokeWidth={2}
                   />
+                  {/* pipe in plan (OD/ID) */}
+                  {showPipe && selectedPipe && (
+                    <>
+                      <circle
+                        cx={0}
+                        cy={0}
+                        r={px(selectedPipe.od_in/2)}
+                        fill="transparent"
+                        opacity={0.4}
+                        stroke="#0F0E0E"
+                        strokeDasharray="4 8"
+                        strokeWidth={0.7}
+                      />
+                      <circle
+                        cx={0}
+                        cy={0}
+                        r={px(selectedPipe.id_in/2)}
+                        fill="transparent"
+                        opacity={0.4}
+                        stroke="#0F0E0E"
+                        strokeDasharray="4 8"
+                        strokeWidth={0.7}
+                      />
+                    </>
+                  )}
                   <text
                     x={0}
                     y={px(p.width_in / 2) + 30}
@@ -404,6 +574,30 @@ export default function BlockCreator() {
                   <rect x={px(left)} y={px(top)} width={px(p.thickness_in)} height={px(p.width_in)} fill="transparent" stroke="#0F0E0E" strokeWidth={2} />
                   {/* center hole */}
                 <rect x={px(-p.thickness_in/2)} y={px(-p.centerHoleDia_in/2)} width={px(p.thickness_in)} height={px(p.centerHoleDia_in)} fill="#ffffff" stroke="#0F0E0E" strokeWidth={2} />
+                {/* pipe in section (OD/ID) */}
+                {showPipe && selectedPipe && (
+                  <>
+                    <rect
+                      x={px(-p.thickness_in/2 - p.pipeLength_in)}
+                      y={px(-selectedPipe.od_in/2)}
+                      width={px(p.pipeLength_in)}
+                      height={px(selectedPipe.od_in)}
+                      fill="url(#hatch)"
+                      opacity={0.7}
+                      stroke="#0F0E0E"
+                      strokeWidth={2}
+                    />
+                    <rect
+                      x={px(-p.thickness_in/2 - p.pipeLength_in)}
+                      y={px(-selectedPipe.id_in/2)}
+                      width={px(p.pipeLength_in)}
+                      height={px(selectedPipe.id_in)}
+                      fill="#ffffff"
+                      stroke="#0F0E0E"
+                      strokeWidth={2}
+                    />
+                  </>
+                )}
                 <text
                   x={0} 
                   y={px(p.width_in / 2) + 30} 
@@ -455,7 +649,7 @@ export default function BlockCreator() {
                 <>  {/*Section View Dimensions*/}
                   <g transform={`translate(${px(p.thickness_in) + 100}, 0)`}>
                     {/* THICKNESS */}
-                    <Dim x1={px(left)} y1={px(top)} x2={px(right)} y2={px(top)} offset={-20}text={`${formatValue({valueInInches:p.thickness_in, unit, precision})}`} />
+                    <Dim x1={px(left)} y1={px(top)} x2={px(right)} y2={px(top)} offset={-20} text={`${formatValue({valueInInches:p.thickness_in, unit, precision})}`} />
 
                     {/* CENTER HOLE */}
                     
@@ -471,7 +665,7 @@ export default function BlockCreator() {
                     
                   </g>
                     {/*Plan View Dimensions*/}
-                  <g transform={`translate(${-px(p.thickness_in) - 100}, 0)`}>
+                  <g transform={`translate(${-px(p.pipeLength_in)-100}, 0)`}>
 
                     {/* WIDTH Vertical */}
                     <Dim 
@@ -506,14 +700,16 @@ export default function BlockCreator() {
         {/* right: properties */}
         <Card className="shadow-md">
           <CardHeader className="pb-2">
-            <CardTitle className="text-xl">Plate Properties</CardTitle>
+            <CardTitle className="text-xl">Properties</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4 text-sm">
+            <h4 className="font-semibold text-slate-700 mb-2">Plate</h4>
             <div className="grid grid-cols-1 gap-2">
               {[
                 { k: "width_in", label: "Width" },
                 { k: "thickness_in", label: "Thickness" },
                 { k: "centerHoleDia_in", label: "Center Hole Ø" },
+                
               ].map(({ k, label }) => (
                 <div key={k} className="flex items-center justify-between rounded-xl bg-slate-50 px-3 py-2">
                   <span className="font-medium text-slate-700">{label}</span>
@@ -523,7 +719,28 @@ export default function BlockCreator() {
                 </div>
               ))}
             </div>
+            
+
+            {showPipe && selectedPipe && (
+              <>
+                <div>
+                  <h4 className="font-semibold text-slate-700 mb-2">Pipe</h4>
+                </div>
+                
+                <div className="rounded-xl bg-slate-50 px-3 py-2">
+                  
+                  <div className="space-y-1 text-sm text-slate-600">
+                    <div className="font-semibold">{selectedPipe.size} 
+                      {selectedPipe.schedule.toUpperCase()} STEEL PIPE</div>
+                    <div>O.D. = {formatValue({ valueInInches: selectedPipe.od_in, unit, precision })}</div>
+                    <div>I.D. = {formatValue({ valueInInches: selectedPipe.id_in, unit, precision })}</div>
+                    <div>L = {formatValue({ valueInInches: params.pipeLength_in || 6, unit, precision })}</div>
+                  </div>
+                </div>
+              </>
+            )}
           </CardContent>
+            
         </Card>
       </div>
       </div>
