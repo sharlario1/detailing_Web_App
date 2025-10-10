@@ -295,9 +295,10 @@ export default function BlockCreator() {
   const bottom = hw;
 
   const leftEdge = px(-p.width_in/2);
-  const dimOffset = 0;
+  const dimOffset = -30;
   const sectionCenterX = px(p.thickness_in/2 + (showPipe && selectedPipe ? p.pipeLength_in : 0)) + 30;
-  const planCenterX = -px(p.pipeLength_in) - 100 + px(p.thickness_in)/2;
+  const planCenterX = px(p.width_in/2 + (showPipe && selectedPipe ? p.pipeLength_in : 0)) + 30;
+
   return (
     <div className="w-full min-h-screen p-6 bg-neutral-50">
       <PageTitle />
@@ -512,11 +513,11 @@ export default function BlockCreator() {
                 
                 
                 {/* Plate - Plan View */}
-                <g transform={`translate(${-px(p.pipeLength_in)-100}, 0)`}>
+                <g transform={`translate(${-px(p.width_in)}, 0)`}>
                   {/* plate outline */}
                   <rect
-                    x={px(-p.width_in/2)}
-                    y={px(-p.width_in/2)}
+                    x={(-30)}
+                    y={px(top)}
                     width={px(p.width_in)}
                     height={px(p.width_in)}
                     fill="transparent"
@@ -525,7 +526,7 @@ export default function BlockCreator() {
                   />
                   {/* center hole */}
                   <circle
-                    cx={0}
+                    cx={px(p.width_in/2) - 30}
                     cy={0}
                     r={px(p.centerHoleDia_in/2)}
                     fill="#fff"
@@ -536,7 +537,7 @@ export default function BlockCreator() {
                   {showPipe && selectedPipe && (
                     <>
                       <circle
-                        cx={0}
+                        cx={px(p.width_in/2) - 30}
                         cy={0}
                         r={px(selectedPipe.od_in/2)}
                         fill="transparent"
@@ -546,7 +547,7 @@ export default function BlockCreator() {
                         strokeWidth={0.7}
                       />
                       <circle
-                        cx={0}
+                        cx={px(p.width_in/2) - 30}
                         cy={0}
                         r={px(selectedPipe.id_in/2)}
                         fill="transparent"
@@ -558,7 +559,7 @@ export default function BlockCreator() {
                     </>
                   )}
                   <text
-                    x={0}
+                    x={px(p.width_in/2) - 30}
                     y={px(p.width_in / 2) + 30}
                     textAnchor="middle"
                     className="text-xs font-bold fill-black-700 font-sans" // Added font-sans here
@@ -619,30 +620,33 @@ export default function BlockCreator() {
                   y2={0}
                   stroke="#94a3b8"
                   strokeDasharray="20 6 6 6 20"
+                  strokeWidth={.5}
                 />
-                <line //center reference line
+                {/*<line //center reference line
                   x1={0}
                   y1={-heightPx-50}
                   x2={0}
                   y2={heightPx-50}
                   stroke="#53e436ff"
                   strokeDasharray="20 6 6 6 20"
-                />
+                />*/}
                 <line //Left vertical line
-                  x1={planCenterX}
+                  x1={-px(p.width_in/2) - 30}
                   y1={-heightPx-50}
-                  x2={planCenterX}
+                  x2={-px(p.width_in/2) - 30}
                   y2={heightPx-50}
-                  stroke="#4736e4ff"
+                  stroke="#94a3b8"
                   strokeDasharray="20 6 6 6 20"
+                  strokeWidth={.5}
                 />
                 <line //Right vertical line
                   x1={sectionCenterX}
                   y1={-heightPx-50}
                   x2={sectionCenterX}
                   y2={heightPx-50}
-                  stroke="#E43636"
+                  stroke="#94a3b8"
                   strokeDasharray="20 6 6 6 20"
+                  strokeWidth={.5}
                 />
 
                 {/* dimensions */}
@@ -666,13 +670,13 @@ export default function BlockCreator() {
                     
                   </g>
                     {/*Plan View Dimensions*/}
-                  <g transform={`translate(${-px(p.pipeLength_in)-100}, 0)`}>
+                  <g transform={`translate(${-px(p.width_in)}, 0)`}>
 
                     {/* WIDTH Vertical */}
                     <Dim 
-                    x1={leftEdge + dimOffset}
+                    x1={dimOffset}
                     y1={px(-p.width_in/2)} 
-                    x2={leftEdge + dimOffset}
+                    x2={dimOffset}
                     y2={px(p.width_in/2)} 
                     offset={20} 
                     text={`${unit === "in"? inchesToEngineeringStr(p.width_in, precision): formatValue({ valueInInches: p.width_in, unit, precision })}`} 
@@ -681,9 +685,9 @@ export default function BlockCreator() {
 
                     {/* WIDTH Horizontal*/}
                     <Dim 
-                    x1={px(top)} 
+                    x1={-30} 
                     y1={px(top)} 
-                    x2={px(bottom)} 
+                    x2={-30 + px(p.width_in)} 
                     y2={px(top)} 
                     offset={-20} 
                     text={`${unit === "in"? inchesToEngineeringStr(p.width_in, precision): formatValue({ valueInInches: p.width_in, unit, precision })}`} />
