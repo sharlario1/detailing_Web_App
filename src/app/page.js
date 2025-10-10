@@ -295,8 +295,9 @@ export default function BlockCreator() {
   const bottom = hw;
 
   const leftEdge = px(-p.width_in/2);
-  const dimOffset = 0; 
-
+  const dimOffset = 0;
+  const sectionCenterX = px(p.thickness_in/2 + (showPipe && selectedPipe ? p.pipeLength_in : 0)) + 30;
+  const planCenterX = -px(p.pipeLength_in) - 100 + px(p.thickness_in)/2;
   return (
     <div className="w-full min-h-screen p-6 bg-neutral-50">
       <PageTitle />
@@ -567,7 +568,7 @@ export default function BlockCreator() {
                 </g>
 
                 {/* Plate - Section View */}
-                <g transform={`translate(${px(p.thickness_in) + 100}, 0)`}>
+                <g transform={`translate(${sectionCenterX}, 0)`}>
                   {/* hatched */}
                   <rect x={px(left)} y={px(top)} width={px(p.thickness_in)} height={px(p.width_in)} fill="url(#hatch)" opacity={0.7} />
                   {/* Plate outline */}
@@ -611,7 +612,7 @@ export default function BlockCreator() {
 
                 
                 {/* axes */}
-                <line
+                <line //horizontal reference line
                   x1={-widthPx}
                   y1={0}
                   x2={widthPx}
@@ -624,21 +625,21 @@ export default function BlockCreator() {
                   y1={-heightPx-50}
                   x2={0}
                   y2={heightPx-50}
-                  stroke="#E43636"
+                  stroke="#53e436ff"
                   strokeDasharray="20 6 6 6 20"
                 />
                 <line //Left vertical line
-                  x1={-px(p.thickness_in) - 100}
+                  x1={planCenterX}
                   y1={-heightPx-50}
-                  x2={-px(p.thickness_in) - 100}
+                  x2={planCenterX}
                   y2={heightPx-50}
-                  stroke="#E43636"
+                  stroke="#4736e4ff"
                   strokeDasharray="20 6 6 6 20"
                 />
-                <line //Right vertical line...
-                  x1={px(p.thickness_in) + 100}
+                <line //Right vertical line
+                  x1={sectionCenterX}
                   y1={-heightPx-50}
-                  x2={px(p.thickness_in) + 100}
+                  x2={sectionCenterX}
                   y2={heightPx-50}
                   stroke="#E43636"
                   strokeDasharray="20 6 6 6 20"
@@ -647,7 +648,7 @@ export default function BlockCreator() {
                 {/* dimensions */}
                 {showDims && (
                 <>  {/*Section View Dimensions*/}
-                  <g transform={`translate(${px(p.thickness_in) + 100}, 0)`}>
+                  <g transform={`translate(${sectionCenterX}, 0)`}>
                     {/* THICKNESS */}
                     <Dim x1={px(left)} y1={px(top)} x2={px(right)} y2={px(top)} offset={-20} text={`${formatValue({valueInInches:p.thickness_in, unit, precision})}`} />
 
@@ -730,7 +731,7 @@ export default function BlockCreator() {
                 <div className="rounded-xl bg-slate-50 px-3 py-2">
                   
                   <div className="space-y-1 text-sm text-slate-600">
-                    <div className="font-semibold">{selectedPipe.size} 
+                    <div className="font-semibold">{selectedPipe.size}&quot; { }
                       {selectedPipe.schedule.toUpperCase()} STEEL PIPE</div>
                     <div>O.D. = {formatValue({ valueInInches: selectedPipe.od_in, unit, precision })}</div>
                     <div>I.D. = {formatValue({ valueInInches: selectedPipe.id_in, unit, precision })}</div>
