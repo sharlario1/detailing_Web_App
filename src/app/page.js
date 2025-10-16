@@ -98,6 +98,10 @@ export default function BlockCreator() {
   const [precision, setPrecision] = useState(2);
   const [showDims, setShowDims] = useState(true);
   const [zoom, setZoom] = useState(2.5);
+  // Pan-only interaction state
+  const [pan, setPan] = useState({ x: 0, y: 0 });
+  const [isPanning, setIsPanning] = useState(false);
+  const dragRef = useRef({ startClientX: 0, startClientY: 0, panStartX: 0, panStartY: 0 });
 
   const uiVal = (inches) => {
   if (inches === undefined || inches === null || inches === '') return '';
@@ -299,6 +303,133 @@ export default function BlockCreator() {
   const sectionCenterX = px(p.thickness_in/2 + (showPipe && selectedPipe ? p.pipeLength_in : 0)) + 30;
   const planCenterX = px(p.width_in/2 + (showPipe && selectedPipe ? p.pipeLength_in : 0)) + 30;
 
+  // Compute geometry bounds (in viewBox px, before pan) for clamping
+  const geometryBounds = useMemo(() => {
+    // Plan group offset
+    const planOffsetX = -px(p.width_in);
+
+    // Plan plate rect
+    const planX0 = planOffsetX + (-30);
+    const planX1 = planX0 + px(p.width_in);
+    const planY0 = px(top);
+    const planY1 = planY0 + px(p.width_in);
+
+    let minX = Math.min(planX0, planX1);
+    let maxX = Math.max(planX0, planX1);
+    let minY = Math.min(planY0, planY1);
+    let maxY = Math.max(planY0, planY1);
+
+    // Plan circles (center hole and optional pipe)
+    const planCx = planOffsetX + (px(p.width_in / 2) - 30);
+    const holeR = px(p.centerHoleDia_in / 2);
+    let extraR = holeR;
+    if (showPipe && selectedPipe) {
+      extraR = Math.max(extraR, px(selectedPipe.od_in / 2), px(selectedPipe.id_in / 2));
+    }
+    minX = Math.min(minX, planCx - extraR);
+    maxX = Math.max(maxX, planCx + extraR);
+    minY = Math.min(minY, -extraR);
+    maxY = Math.max(maxY, +extraR);
+
+    // Section group offset
+    const sectionOffsetX = sectionCenterX;
+
+    // Section plate rect
+    const secX0 = sectionOffsetX + px(left);
+    const secX1 = sectionOffsetX + px(right);
+    const secY0 = px(top);
+    const secY1 = secY0 + px(p.width_in);
+
+    minX = Math.min(minX, secX0);
+    maxX = Math.max(maxX, secX1);
+    minY = Math.min(minY, secY0);
+    maxY = Math.max(maxY, secY1);
+
+    // Section pipe (if any)
+    if (showPipe && selectedPipe) {
+      const pipeLeft = sectionOffsetX + px(-p.thickness_in / 2 - p.pipeLength_in);
+      const pipeRight = sectionOffsetX + px(-p.thickness_in / 2);
+      const pipeTop = px(-selectedPipe.od_in / 2);
+      const pipeBottom = px(selectedPipe.od_in / 2);
+
+      minX = Math.min(minX, pipeLeft);
+      maxX = Math.max(maxX, pipeRight, secX1);
+      minY = Math.min(minY, pipeTop);
+      maxY = Math.max(maxY, pipeBottom);
+    }
+
+    return { minX, maxX, minY, maxY };
+  }, [p, px, showPipe, selectedPipe, sectionCenterX, left, right, top]);
+
+  // Pan limits so that geometry stays within viewport with ≥200px padding
+  const panLimits = useMemo(() => {
+    const padding = 200;
+    const leftV = -widthPx / 2;
+    const rightV = widthPx / 2;
+    const topV = -heightPx / 2;
+    const bottomV = heightPx / 2;
+
+    let xMin = (leftV + padding) - geometryBounds.minX;
+    let xMax = (rightV - padding) - geometryBounds.maxX;
+    let yMin = (topV + padding) - geometryBounds.minY;
+    let yMax = (bottomV - padding) - geometryBounds.maxY;
+
+    // If geometry is larger than the viewport minus padding, lock pan to center
+    if (xMin > xMax) {
+      const centerV = (leftV + rightV) / 2;
+      const centerG = (geometryBounds.minX + geometryBounds.maxX) / 2;
+      xMin = xMax = centerV - centerG;
+    }
+    if (yMin > yMax) {
+      const centerV = (topV + bottomV) / 2;
+      const centerG = (geometryBounds.minY + geometryBounds.maxY) / 2;
+      yMin = yMax = centerV - centerG;
+    }
+
+    return { xMin, xMax, yMin, yMax };
+  }, [geometryBounds, widthPx, heightPx]);
+
+  // Re-clamp current pan whenever limits change
+  React.useEffect(() => {
+    setPan(prev => {
+      const nx = clamp(prev.x, panLimits.xMin, panLimits.xMax);
+      const ny = clamp(prev.y, panLimits.yMin, panLimits.yMax);
+      if (nx === prev.x && ny === prev.y) return prev;
+      return { x: nx, y: ny };
+    });
+  }, [panLimits]);
+
+  // Pointer handlers for pan (left mouse drag)
+  const handlePointerDown = React.useCallback((e) => {
+    if (e.button !== 0) return; // left button only
+    e.preventDefault();
+    e.currentTarget.setPointerCapture?.(e.pointerId);
+    setIsPanning(true);
+    dragRef.current = {
+      startClientX: e.clientX,
+      startClientY: e.clientY,
+      panStartX: pan.x,
+      panStartY: pan.y,
+    };
+  }, [pan.x, pan.y]);
+
+  const handlePointerMove = React.useCallback((e) => {
+    if (!isPanning) return;
+    const dx = e.clientX - dragRef.current.startClientX;
+    const dy = e.clientY - dragRef.current.startClientY;
+    const desiredX = dragRef.current.panStartX + dx;
+    const desiredY = dragRef.current.panStartY + dy;
+    const clampedX = clamp(desiredX, panLimits.xMin, panLimits.xMax);
+    const clampedY = clamp(desiredY, panLimits.yMin, panLimits.yMax);
+    setPan(prev => (prev.x === clampedX && prev.y === clampedY ? prev : { x: clampedX, y: clampedY }));
+  }, [isPanning, panLimits]);
+
+  const handlePointerUp = React.useCallback((e) => {
+    if (!isPanning) return;
+    e.currentTarget.releasePointerCapture?.(e.pointerId);
+    setIsPanning(false);
+  }, [isPanning]);
+
   return (
     <div className="w-full min-h-screen p-6 bg-neutral-50">
       <PageTitle />
@@ -492,13 +623,18 @@ export default function BlockCreator() {
             <CardTitle className="text-xl">Plate Detail</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="w-full overflow-auto rounded-xl bg-white border">
+            <div className="w-full overflow-hidden rounded-xl bg-white border">
               <motion.svg
                 ref={svgRef}
                 width={widthPx}
                 height={heightPx}
                 viewBox={`${-widthPx/2} ${-heightPx/2} ${widthPx} ${heightPx}`}
-                className="mx-auto block"
+                className={`mx-auto block ${isPanning ? 'cursor-grabbing' : 'cursor-grab'}`}
+                onPointerDown={handlePointerDown}
+                onPointerMove={handlePointerMove}
+                onPointerUp={handlePointerUp}
+                onPointerLeave={handlePointerUp}
+                style={{ touchAction: "none" }}
               >
                 <defs>
                   <marker id="arrow" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
@@ -508,6 +644,7 @@ export default function BlockCreator() {
                     <line x1="0" y1="0" x2="0" y2="8" stroke="#44444E" strokeWidth="2" />
                   </pattern>
                 </defs>
+                <g transform={`translate(${pan.x} ${pan.y})`}>
 
                
                 
@@ -697,6 +834,7 @@ export default function BlockCreator() {
                   
 
                 )}
+                </g>
               </motion.svg>
             </div>
           </CardContent>
