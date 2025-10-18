@@ -166,6 +166,14 @@ export default function BlockCreator() {
     return { od_in: rec.od, id_in: id, size: pipeSize, schedule: pipeSchedule };
   }, [pipeSize, pipeSchedule]);
 
+  // ---------- materials and quantity UI state ----------
+  const [showQty, setShowQty] = useState(false);
+  const [qty, setQty] = useState("");
+  const [useCustomMaterials, setUseCustomMaterials] = useState(false);
+  const [customMaterialsText, setCustomMaterialsText] = useState("");
+  const [plateMaterial, setPlateMaterial] = useState(""); 
+  const [coating, setCoating] = useState(""); 
+
   // constraints / computed
   const computed = useMemo(() => {
     const p = { ...params };
@@ -184,6 +192,7 @@ export default function BlockCreator() {
   }, [params, zoom]);
 
   const svgRef = useRef(null);
+  const userHasPannedRef = useRef(false);
 
   // unit conversion helpers for inputs
   
@@ -287,10 +296,57 @@ export default function BlockCreator() {
   // ---------- render ----------
   const { p, px, hw, ht } = computed;
 
-  // canvas size in px
-  const margin = 200;
-  const widthPx = px(p.thickness_in) + margin * 4;
-  const heightPx = px(p.width_in) + margin * 2;
+  // ---------- description ----------
+  const fmtInches = (n) => {
+    const s = Number(n).toFixed(2);
+    return `${s.replace(/\.?0+$/, '')}"`;
+  };
+
+  const deriveCoatingPhrase = (coat) => {
+    if (!coat) return "";
+    const c = coat.toUpperCase();
+    if (c.includes("GALVANIZED")) return "Assembly Galvanized";
+    if (c.startsWith("EPOXY-COATED")) return "Assembly Epoxy-Coated";
+    if (c.includes("UNCOATED")) return "Assembly Uncoated";
+    return coat;
+  };
+
+  const description = useMemo(() => {
+    const parts = [];
+
+    if (showQty && qty) {
+      parts.push(`${qty} ea`);
+    }
+
+    // Plate size
+    parts.push(`${fmtInches(p.width_in)}x${fmtInches(p.width_in)}x${fmtInches(p.thickness_in)}`);
+
+    // Grade from selected plate material (e.g., "ASTM A572, GRADE 50" -> 50)
+    const m = /GRADE\s*(\d+)/i.exec(plateMaterial || "");
+    if (m && m[1]) {
+      parts.push(`GR${m[1]}`);
+    }
+
+    parts.push("Plate w/");
+    parts.push(`${fmtInches(p.centerHoleDia_in)} C.H`);
+
+    // Pipe portion (only when active)
+    if (showPipe && selectedPipe) {
+      const sched = selectedPipe.schedule.toUpperCase().replace(/\./g, "");
+      parts.push(`Welded to ${selectedPipe.size}" ${sched} Pipe x ${fmtInches(p.pipeLength_in)} Long.`);
+    }
+
+    // Coating summary at the end
+    const coatPhrase = deriveCoatingPhrase(coating);
+    if (coatPhrase) parts.push(coatPhrase);
+
+    return parts.join(" ");
+  }, [showQty, qty, p.width_in, p.thickness_in, p.centerHoleDia_in, p.pipeLength_in, plateMaterial, showPipe, selectedPipe, coating]);
+
+  // canvas size basis (computed later from geometryBounds + padding)
+  const PADDING = 100;
+  let widthPx = 0;
+  let heightPx = 0;
 
   // geometry in *inches* (origin at plate center)
   const left = -ht;
@@ -361,9 +417,35 @@ export default function BlockCreator() {
     return { minX, maxX, minY, maxY };
   }, [p, px, showPipe, selectedPipe, sectionCenterX, left, right, top]);
 
+  // Compute canvas/viewBox size from geometry bounds + padding (in viewBox px)
+  const contentW = geometryBounds.maxX - geometryBounds.minX;
+  const contentH = geometryBounds.maxY - geometryBounds.minY;
+  widthPx = contentW + 2 * PADDING;
+  heightPx = contentH + 2 * PADDING;
+
+  // ---------- materials lines (for below-canvas display) ----------
+  const materialsLines = useMemo(() => {
+    if (useCustomMaterials && customMaterialsText.trim()) {
+      return customMaterialsText.split(/\r?\n/);
+    }
+    if (showPipe && selectedPipe) {
+      return [
+        "MATERIALS:",
+        `PLATE: ${plateMaterial || ""}`,
+        "PIPE: ASTM A53 OR A500",
+        coating || ""
+      ];
+    }
+    return [
+      "MATERIAL:",
+      plateMaterial || "",
+      coating || ""
+    ];
+  }, [useCustomMaterials, customMaterialsText, showPipe, selectedPipe, plateMaterial, coating]);
+
   // Pan limits so that geometry stays within viewport with ≥200px padding
   const panLimits = useMemo(() => {
-    const padding = 200;
+    const padding = PADDING;
     const leftV = -widthPx / 2;
     const rightV = widthPx / 2;
     const topV = -heightPx / 2;
@@ -399,12 +481,25 @@ export default function BlockCreator() {
     });
   }, [panLimits]);
 
+  // Auto-center pan to geometry when bounds/limits change, unless user has panned
+  React.useEffect(() => {
+    if (userHasPannedRef.current) return;
+    const geomCX = (geometryBounds.minX + geometryBounds.maxX) / 2;
+    const geomCY = (geometryBounds.minY + geometryBounds.maxY) / 2;
+    const targetX = -geomCX;
+    const targetY = -geomCY;
+    const nx = clamp(targetX, panLimits.xMin, panLimits.xMax);
+    const ny = clamp(targetY, panLimits.yMin, panLimits.yMax);
+    setPan(prev => (prev.x === nx && prev.y === ny ? prev : { x: nx, y: ny }));
+  }, [geometryBounds, panLimits]);
+
   // Pointer handlers for pan (left mouse drag)
   const handlePointerDown = React.useCallback((e) => {
     if (e.button !== 0) return; // left button only
     e.preventDefault();
     e.currentTarget.setPointerCapture?.(e.pointerId);
     setIsPanning(true);
+    userHasPannedRef.current = true;
     dragRef.current = {
       startClientX: e.clientX,
       startClientY: e.clientY,
@@ -438,12 +533,13 @@ export default function BlockCreator() {
         {/* left: controls */}
         <Card className="shadow-md">
           <CardHeader className="pb-2">
-            <CardTitle className="flex items-center gap-2 text-xl"><Settings2 className="h-5 w-5"/> Dimensions</CardTitle>
+            <CardTitle className="flex items-center gap-2 text-xl"><Settings2 className="h-5 w-5"/>PARAMETERS</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <Tabs defaultValue="geom">
-              <TabsList className="grid grid-cols-2">
+              <TabsList className="grid grid-cols-3">
                 <TabsTrigger value="geom">Geometry</TabsTrigger>
+                <TabsTrigger value="materials">Materials</TabsTrigger>
                 <TabsTrigger value="display">Display</TabsTrigger>
               </TabsList>
               <TabsContent value="geom" className="space-y-4">
@@ -508,6 +604,30 @@ export default function BlockCreator() {
                   );
                 })}
                 
+                {/* Quantity toggle and input */}
+                <div className={`flex items-center justify-between ${roboto.className}`}>
+                  <Label className="flex items-center gap-2">Show Quantity</Label>
+                  <Switch checked={showQty} onCheckedChange={setShowQty}/>
+                </div>
+                {showQty && (
+                  <div className={`space-y-2 ${roboto.className}`}>
+                    <div className="flex items-center gap-2">
+                      <Input
+                        id="quantity_each"
+                        type="number"
+                        min={0}
+                        step={1}
+                        placeholder="Enter quantity"
+                        value={qty}
+                        onChange={(e)=>setQty(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") e.currentTarget.blur();
+                        }}
+                      />
+                    </div>
+                  </div>
+                )}
+
                 <div className="flex items-center justify-between">
                     <Label className="flex items-center gap-2"><CircleDashed className="h-4 w-4"/> Show Welded Steel Pipe</Label>
                     <Switch checked={showPipe} onCheckedChange={setShowPipe}/>
@@ -613,6 +733,61 @@ export default function BlockCreator() {
                   <Button variant="outline" onClick={downloadJSON} className="gap-2"><Download className="h-4 w-4"/>Export JSON</Button> */}
                 </div>
               </TabsContent>
+              <TabsContent value="materials" className={`space-y-4 ${roboto.className}`}>
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <Label className="flex items-center gap-2">Custom materials text</Label>
+                    <Switch checked={useCustomMaterials} onCheckedChange={setUseCustomMaterials}/>
+                  </div>
+                  {useCustomMaterials ? (
+                    <div className="space-y-1">
+                      <textarea
+                        id="customMaterials"
+                        className="w-full min-h-28 border rounded-md px-3 py-2 bg-white text-sm"
+                        placeholder='Example:
+                          MATERIALS:
+                          PLATE: ASTM A572, GRADE 50
+                          PIPE: ASTM A53 OR A500
+                          UNCOATED'
+                        value={customMaterialsText}
+                        onChange={(e)=>setCustomMaterialsText(e.target.value)}
+                      />
+                    </div>
+                  ) : (
+                    <>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="space-y-1">
+                          <Label>Plate material</Label>
+                          <select
+                            className="w-full border rounded-md px-2 py-2 bg-white"
+                            value={plateMaterial}
+                            onChange={(e)=>setPlateMaterial(e.target.value)}
+                          >
+                            <option value="">— Select —</option>
+                            <option value="ASTM A572, GRADE 50">ASTM A572, GRADE 50</option>
+                            <option value="ASTM A709, GRADE 36">ASTM A709, GRADE 36</option>
+                          </select>
+                        </div>
+                        <div className="space-y-1">
+                          <Label>Protective coating</Label>
+                          <select
+                            className="w-full border rounded-md px-2 py-2 bg-white"
+                            value={coating}
+                            onChange={(e)=>setCoating(e.target.value)}
+                          >
+                            <option value="">— Select —</option>
+                            <option value="UNCOATED">UNCOATED</option>
+                            <option value="EPOXY-COATED">EPOXY-COATED</option>
+                            <option value="HOT DIP GALVANIZED AFTER FABRICATION">HOT DIP GALVANIZED AFTER FABRICATION</option>
+                            <option value="EPOXY-COATED PER ASTM A775">EPOXY-COATED PER ASTM A775</option>
+                            <option value="EPOXY-COATED PER ASTM A934">EPOXY-COATED PER ASTM A934</option>
+                          </select>
+                        </div>
+                      </div>
+                    </>
+                  )}
+                </div>
+              </TabsContent>
             </Tabs>
           </CardContent>
         </Card>
@@ -620,9 +795,13 @@ export default function BlockCreator() {
         {/* center: canvas */}
         <Card className="shadow-md">
           <CardHeader className="pb-2">
-            <CardTitle className="text-xl">Plate Detail</CardTitle>
+            <CardTitle className="text-xl">PLATE DETAIL</CardTitle>
           </CardHeader>
           <CardContent>
+            <div className={`mb-3 ${roboto.className}`}>
+              <div className="text-xs text-slate-500 font-medium">Description:</div>
+              <div className="text-sm text-slate-800">{description}</div>
+            </div>
             <div className="w-full overflow-hidden rounded-xl bg-white border">
               <motion.svg
                 ref={svgRef}
@@ -738,10 +917,10 @@ export default function BlockCreator() {
                   </>
                 )}
                 <text
-                  x={0} 
-                  y={px(p.width_in / 2) + 30} 
+                  x={showPipe && selectedPipe ? px(-p.pipeLength_in / 2) : 0}
+                  y={px(p.width_in / 2) + 30}
                   textAnchor="middle"
-                  className="text-xs font-bold fill-black-700 font-sans" 
+                  className="text-xs font-bold fill-black-700 font-sans"
                 >
                   SECTION
                 </text>
@@ -793,6 +972,21 @@ export default function BlockCreator() {
                     {/* THICKNESS */}
                     <Dim x1={px(left)} y1={px(top)} x2={px(right)} y2={px(top)} offset={-20} text={`${formatValue({valueInInches:p.thickness_in, unit, precision})}`} />
 
+                    {/* PIPE LENGTH (aligned with THICKNESS dimension line) */}
+                    {showPipe && selectedPipe && (
+                      <Dim
+                        x1={px(-p.thickness_in/2 - p.pipeLength_in)}
+                        y1={px(-selectedPipe.od_in/2)}
+                        x2={px(-p.thickness_in/2)}
+                        y2={px(-selectedPipe.od_in/2)}
+                        offset={px(top) - 20 - px(-selectedPipe.od_in/2)}
+                        text={`${unit === "in" ? inchesToEngineeringStr(p.pipeLength_in, precision) : formatValue({ valueInInches: p.pipeLength_in, unit, precision })}`}
+                        textPos="above"
+                      />
+                    )}
+
+
+
                     {/* CENTER HOLE */}
                     
                     <Dim 
@@ -837,13 +1031,25 @@ export default function BlockCreator() {
                 </g>
               </motion.svg>
             </div>
+            {/* Below-canvas quantity/materials text */}
+            <div className={`mt-4 text-left ${roboto.className}`}>
+              {showQty && (
+                <pre className="whitespace-pre-wrap text-xs text-slate-800 mb-2">{`QUANTITY:
+${(qty ?? "").toString()} EACH`}</pre>
+              )}
+              {materialsLines.length > 0 && (
+                <pre className="whitespace-pre-wrap text-xs text-slate-800">
+                  {materialsLines.join("\n")}
+                </pre>
+              )}
+            </div>
           </CardContent>
         </Card>
 
         {/* right: properties */}
         <Card className="shadow-md">
           <CardHeader className="pb-2">
-            <CardTitle className="text-xl">Properties</CardTitle>
+            <CardTitle className="text-xl">PROPERTIES</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4 text-sm">
             <h4 className="font-semibold text-slate-700 mb-2">Plate</h4>
