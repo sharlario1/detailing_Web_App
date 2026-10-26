@@ -13,7 +13,8 @@ import { Download, Ruler, Settings2 } from "lucide-react";
 import { CircleDashed } from 'lucide-react';
 import { motion } from "framer-motion";
 import { Analytics } from "@vercel/analytics/next";
-import Image from 'next/image'
+import { Key } from 'lucide-react';
+
 
 
 const roboto = Roboto({
@@ -79,14 +80,9 @@ const PIPE_DATA = {
 // Title component
 function PageTitle() {
   return (
-    <div className={`w-full text-left py-6 flex items-center gap-4 ${roboto.className}`}>
-      <Image 
-      src="/logo.svg" 
-      alt="DYWIDAG_Logo" 
-      width={200} 
-      height={200} 
-      />
-      <h1 className="text-3xl font-bold text-gray-800">DETAILING WEB APP</h1>
+    <div className={`w-full text-left py-6 flex items-center gap-3 ${roboto.className}`}>
+      <Ruler className="h-8 w-8 text-gray-800" strokeWidth={1.5} />
+      <h1 className="text-3xl font-bold text-gray-800">PLATE DETAILING TOOL</h1>
     </div>
   );
 }
@@ -119,12 +115,16 @@ export default function BlockCreator() {
     thickness_in: 1.75, 
     centerHoleDia_in: 1.5, 
     pipeLength_in: 6,
+    keyholeDia_in: 0.75,     
+    keyholeDistance_in: 3.0  
   });
 
   const [inputVals, setInputVals] = useState({
     width_in: uiVal(params.width_in),
     thickness_in: uiVal(params.thickness_in),
     pipeLength_in: uiVal(params.pipeLength_in),
+    keyholeDia_in: uiVal(params.keyholeDia_in),      
+    keyholeDistance_in: uiVal(params.keyholeDistance_in)  
   });
 
   // Pipe UI state
@@ -148,7 +148,12 @@ export default function BlockCreator() {
       const numB = parseFloat(b.replace(' ½', '.5'));
       return numA - numB;
     });
-}, [pipeSchedule]);
+  }, [pipeSchedule]);
+
+  const [showKeyhole, setShowKeyhole] = useState(false);
+  const [keyholeDia_in, setKeyholeDia_in] = useState(1.0);
+  const [keyholeDistance_in, setKeyholeDistance_in] = useState(3.0);
+
   React.useEffect(() => {
     const key = scheduleToKey(pipeSchedule);
     if (PIPE_DATA[pipeSize]?.[key] == null) {
@@ -525,6 +530,25 @@ export default function BlockCreator() {
     setIsPanning(false);
   }, [isPanning]);
 
+  function Keyhole({ x, y, diameter }) {
+    const r = diameter / 2;
+    const l = y - r;
+    return (
+      <path
+        d={`
+          M ${x} ${-r}
+          a ${r} ${r} 0 1 1 0 ${2*r}
+          v ${-l}
+          a ${r} ${r} 0 1 1 0 ${-2*r}
+          z
+        `}
+        fill="#fff"
+        stroke="#0F0E0E"
+        strokeWidth={2}
+      />
+    );
+  }
+
   return (
     <div className="w-full min-h-screen p-6 bg-neutral-50">
       <PageTitle />
@@ -700,6 +724,71 @@ export default function BlockCreator() {
                   </div>
                 )}
                 <div className="flex items-center justify-between"></div>
+                <div className="flex items-center justify-between">
+                  <Label className="flex items-center gap-2">
+                    <Key className="h-4 w-4"/> Show Keyhole
+                  </Label>
+                  <Switch checked={showKeyhole} onCheckedChange={setShowKeyhole}/>
+                </div>
+                {showKeyhole && (
+                  <div className="space-y-4">
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <Label htmlFor="keyholeDia_in">Keyhole Diameter</Label>
+                        <span className="text-sm tabular-nums text-muted-foreground">
+                          {unit === "in" ? `${uiVal(p.keyholeDia_in).toFixed(2)}\"` : `${uiVal(p.keyholeDia_in).toFixed(1)} mm`}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Input
+                          id="keyholeDia_in"
+                          type="number"
+                          step={unit === "in" ? 0.125 : 1}
+                          min={unit === "in" ? 0.5 : 12.7}
+                          max={unit === "in" ? 2 : 50.8}
+                          value={inputVals.keyholeDia_in}
+                          onChange={(e) => handleInputChange("keyholeDia_in", e.target.value)}
+                          onBlur={(e) => handleInputBlur("keyholeDia_in", e.target.value)}
+                        />
+                      </div>
+                      <Slider
+                        value={[uiVal(p.keyholeDia_in)]}
+                        min={unit === "in" ? 0.5 : 12.7}
+                        max={unit === "in" ? 2 : 50.8}
+                        step={unit === "in" ? 0.125 : 1}
+                        onValueChange={(vals) => setParam("keyholeDia_in", vals[0])}
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <Label htmlFor="keyholeDistance_in">Distance from Center</Label>
+                        <span className="text-sm tabular-nums text-muted-foreground">
+                          {unit === "in" ? `${uiVal(p.keyholeDistance_in).toFixed(2)}\"` : `${uiVal(p.keyholeDistance_in).toFixed(1)} mm`}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Input
+                          id="keyholeDistance_in"
+                          type="number"
+                          step={unit === "in" ? 0.125 : 1}
+                          min={unit === "in" ? 0 : 0}
+                          max={unit === "in" ? p.width_in/2 : p.width_in*12.7}
+                          value={inputVals.keyholeDistance_in}
+                          onChange={(e) => handleInputChange("keyholeDistance_in", e.target.value)}
+                          onBlur={(e) => handleInputBlur("keyholeDistance_in", e.target.value)}
+                        />
+                      </div>
+                      <Slider
+                        value={[uiVal(p.keyholeDistance_in)]}
+                        min={unit === "in" ? 0 : 0}
+                        max={unit === "in" ? p.width_in/2 : p.width_in*12.7}
+                        step={unit === "in" ? 0.125 : 1}
+                        onValueChange={(vals) => setParam("keyholeDistance_in", vals[0])}
+                      />
+                    </div>
+                  </div>
+                )}
               </TabsContent>
                 
 
@@ -849,6 +938,16 @@ export default function BlockCreator() {
                     stroke="#0F0E0E"
                     strokeWidth={2}
                   />
+
+                  {/* key hole */}
+                  {showKeyhole && (
+                    <Keyhole
+                      x={px(p.width_in/2 - 30)}
+                      y={px(p.keyholeDistance_in)}
+                      diameter={px(p.keyholeDia_in)}
+                    />
+                  )}
+
                   {/* pipe in plan (OD/ID) */}
                   {showPipe && selectedPipe && (
                     <>
@@ -885,47 +984,61 @@ export default function BlockCreator() {
                 </g>
 
                 {/* Plate - Section View */}
-                <g transform={`translate(${sectionCenterX}, 0)`}>
-                  {/* hatched */}
-                  <rect x={px(left)} y={px(top)} width={px(p.thickness_in)} height={px(p.width_in)} fill="url(#hatch)" opacity={0.7} />
-                  {/* Plate outline */}
-                  <rect x={px(left)} y={px(top)} width={px(p.thickness_in)} height={px(p.width_in)} fill="transparent" stroke="#0F0E0E" strokeWidth={2} />
-                  {/* center hole */}
-                <rect x={px(-p.thickness_in/2)} y={px(-p.centerHoleDia_in/2)} width={px(p.thickness_in)} height={px(p.centerHoleDia_in)} fill="#ffffff" stroke="#0F0E0E" strokeWidth={2} />
-                {/* pipe in section (OD/ID) */}
-                {showPipe && selectedPipe && (
-                  <>
-                    <rect
-                      x={px(-p.thickness_in/2 - p.pipeLength_in)}
-                      y={px(-selectedPipe.od_in/2)}
-                      width={px(p.pipeLength_in)}
-                      height={px(selectedPipe.od_in)}
-                      fill="url(#hatch)"
-                      opacity={0.7}
-                      stroke="#0F0E0E"
-                      strokeWidth={2}
-                    />
-                    <rect
-                      x={px(-p.thickness_in/2 - p.pipeLength_in)}
-                      y={px(-selectedPipe.id_in/2)}
-                      width={px(p.pipeLength_in)}
-                      height={px(selectedPipe.id_in)}
-                      fill="#ffffff"
-                      stroke="#0F0E0E"
-                      strokeWidth={2}
-                    />
-                  </>
-                )}
-                <text
-                  x={showPipe && selectedPipe ? px(-p.pipeLength_in / 2) : 0}
-                  y={px(p.width_in / 2) + 30}
-                  textAnchor="middle"
-                  className="text-xs font-bold fill-black-700 font-sans"
-                >
-                  SECTION
-                </text>
+                  <g transform={`translate(${sectionCenterX}, 0)`}>
+                    {/* hatched */}
+                    <rect x={px(left)} y={px(top)} width={px(p.thickness_in)} height={px(p.width_in)} fill="url(#hatch)" opacity={0.7} />
+                    {/* Plate outline */}
+                    <rect x={px(left)} y={px(top)} width={px(p.thickness_in)} height={px(p.width_in)} fill="transparent" stroke="#0F0E0E" strokeWidth={2} />
+                    {/* center hole */}
+                  <rect x={px(-p.thickness_in/2)} y={px(-p.centerHoleDia_in/2)} width={px(p.thickness_in)} height={px(p.centerHoleDia_in)} fill="#ffffff" stroke="#0F0E0E" strokeWidth={2} />
+                    
+                    {/* key hole */}
+                    {showKeyhole && (
+                      <rect
+                        x={px(-p.thickness_in/2)}
+                        y={px(p.keyholeDistance_in - p.keyholeDia_in/2)}
+                        width={px(p.thickness_in)}
+                        height={px(p.keyholeDia_in)}
+                        fill="#ffffff"
+                        stroke="#0F0E0E"
+                        strokeWidth={2}
+                      />
+                    )}
+                    
+                    {/* pipe in section (OD/ID) */}
+                    {showPipe && selectedPipe && (
+                      <>
+                      <rect
+                        x={px(-p.thickness_in/2 - p.pipeLength_in)}
+                        y={px(-selectedPipe.od_in/2)}
+                        width={px(p.pipeLength_in)}
+                        height={px(selectedPipe.od_in)}
+                        fill="url(#hatch)"
+                        opacity={0.7}
+                        stroke="#0F0E0E"
+                        strokeWidth={2}
+                      />
+                      <rect
+                        x={px(-p.thickness_in/2 - p.pipeLength_in)}
+                        y={px(-selectedPipe.id_in/2)}
+                        width={px(p.pipeLength_in)}
+                        height={px(selectedPipe.id_in)}
+                        fill="#ffffff"
+                        stroke="#0F0E0E"
+                        strokeWidth={2}
+                      />
+                    </>
+                  )}
+                  <text
+                    x={showPipe && selectedPipe ? px(-p.pipeLength_in / 2) : 0}
+                    y={px(p.width_in / 2) + 30}
+                    textAnchor="middle"
+                    className="text-xs font-bold fill-black-700 font-sans"
+                  >
+                    SECTION
+                  </text>
 
-                </g>
+                  </g>
 
                 
                 {/* axes */}
@@ -1023,6 +1136,18 @@ export default function BlockCreator() {
                     offset={-20} 
                     text={`${unit === "in"? inchesToEngineeringStr(p.width_in, precision): formatValue({ valueInInches: p.width_in, unit, precision })}`} />
                   </g>
+
+                  {showKeyhole && (
+                    <Dim
+                      x1={px(right)}
+                      y1={px(p.keyholeDistance_in)}
+                      x2={px(right)}
+                      y2={0}
+                      offset={20}
+                      text={formatValue({valueInInches: p.keyholeDistance_in, unit, precision})}
+                      rotate={-90}
+                    />
+                  )}
                 </>
 
                   

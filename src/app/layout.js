@@ -12,8 +12,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata = {
-  title: "DYWIDAG Detailing",
-  description: "By Santiago González",
+  title: "Plate Detailing Tool",
+  description: "A parametric plate-detail generator by Santiago González",
 };
 
 export default function RootLayout({ children }) {
